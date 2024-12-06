@@ -1,0 +1,5 @@
+pandas
+tkinter
+python-bidi
+reportlab
+openpyxl
