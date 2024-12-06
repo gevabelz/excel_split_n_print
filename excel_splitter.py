@@ -2,6 +2,7 @@ import pandas as pd
 import os
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk  # ttk for Combobox
+from tkinter.scrolledtext import ScrolledText  # For a scrollable text box
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -172,11 +173,11 @@ def export_tables_to_pdf(tables, output_pdf_base, combine_all=False):
             sanitized_title = sanitize_filename(title)
             output_pdf = os.path.join(output_pdf_base, f"{sanitized_title}.pdf")
             create_pdf_from_table(table, title, output_pdf)
-            print(f"PDF saved as {output_pdf}")
+
+        messagebox.showinfo("הצלחה", f"הקבצים נוצרו בהצלחה")
 
 # Function to sanitize the title for use as a filename
 def sanitize_filename(title):
-    # Remove any characters that are not valid in a filename
     return re.sub(r'[\\/*?:"<>|]', "_", title)
 
 # GUI for choosing files and folder
@@ -185,42 +186,54 @@ class PDFExporterGUI:
         self.root = root
         self.root.title("PDF Exporter")
         self.root.geometry("600x400")  # Adjust window size
+        self.root.config(bg="sky blue")  # Set root background color to white
+
+        # Frame for the main content area
+        self.main_frame = tk.Frame(self.root, bg="sky blue")
+        self.main_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
 
         # Add a label and button for selecting the input file
-        self.input_file_label = tk.Label(self.root, text="קובץ לא נבחר", width=50, anchor="center")
+        self.input_file_label = tk.Label(self.main_frame, text="קובץ לא נבחר", width=50, anchor="center", bg="sky blue")
         self.input_file_label.pack(pady=10)
 
-        self.input_file_button = tk.Button(self.root, text="בחרו קובץ אקסל", command=self.choose_input_file)
+        self.input_file_button = tk.Button(self.main_frame, text="בחרו קובץ אקסל", command=self.choose_input_file, bg="white")
         self.input_file_button.pack(pady=10)
 
         # Add a label for sheet selection
-        self.sheet_label = tk.Label(self.root, text="בחרו גיליון", width=50, anchor="center")
+        self.sheet_label = tk.Label(self.main_frame, text="בחרו גיליון", width=50, anchor="center", bg="sky blue")
         self.sheet_label.pack(pady=10)
 
-        self.sheet_combobox = ttk.Combobox(self.root, state="readonly")
+        self.sheet_combobox = ttk.Combobox(self.main_frame, state="readonly")
         self.sheet_combobox.pack(pady=10)
 
         # Add a label and button for selecting the output folder
-        self.output_folder_label = tk.Label(self.root, text="תיקייה לא נבחרה", width=50, anchor="center")
+        self.output_folder_label = tk.Label(self.main_frame, text="תיקייה לא נבחרה", width=50, anchor="center", bg="sky blue")
         self.output_folder_label.pack(pady=10)
 
-        self.output_folder_button = tk.Button(self.root, text="בחרו תיקייה שבה הקבצים החדשים יווצרו", command=self.choose_output_folder)
+        self.output_folder_button = tk.Button(self.main_frame, text="בחרו תיקייה שבה הקבצים החדשים יווצרו", command=self.choose_output_folder, bg="white")
         self.output_folder_button.pack(pady=10)
 
         # Checkbox for combining into one PDF
         self.combine_checkbox_var = tk.BooleanVar()
-        self.combine_checkbox = tk.Checkbutton(root, text="ייצא קובץ אחד משולב", variable=self.combine_checkbox_var)
+        self.combine_checkbox = tk.Checkbutton(self.main_frame, text="ייצא קובץ אחד משולב", variable=self.combine_checkbox_var, bg="sky blue")
         self.combine_checkbox.pack(padx=100, pady=10)
 
         # Start button
-        self.start_button = tk.Button(self.root, text="התחל", state=tk.DISABLED, command=self.start_export, font=("Helvetica", 16, "bold"), bg="green", fg="black", width=20, height=2)
+        self.start_button = tk.Button(self.main_frame, text="התחל", state=tk.DISABLED, command=self.start_export, font=("Helvetica", 16, "bold"), bg="green", fg="black", width=20, height=2)
         self.start_button.pack(pady=20)
+
+        # Side frame for the help button
+        self.side_frame = tk.Frame(self.root, bg="sky blue")
+        self.side_frame.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # Help button
+        self.help_button = tk.Button(self.side_frame, text="הסבר על פורמט האקסל", command=self.show_help_window, height=3, width=20, anchor="w", padx=30, bg="white")
+        self.help_button.pack(pady=10, padx=10)
 
     def choose_input_file(self):
         self.input_file = filedialog.askopenfilename(title="Select Excel File", filetypes=[("Excel Files", "*.xlsx")])
         if self.input_file:
             self.input_file_label.config(text=f"קובץ נבחר: {self.input_file}")
-            # Load the sheet names into the combo box
             xls = pd.ExcelFile(self.input_file)
             sheet_names = xls.sheet_names
             self.sheet_combobox['values'] = sheet_names
@@ -240,20 +253,34 @@ class PDFExporterGUI:
 
     def start_export(self):
         try:
-            # Read the selected sheet
             selected_sheet = self.sheet_combobox.get()
             df = read_excel(self.input_file, selected_sheet)
-            
-            # Split the tables based on "נוכחות"
             tables = split_tables(df)
-            
-            # Export the tables to PDFs, with combine option from checkbox
             export_tables_to_pdf(tables, self.output_folder, combine_all=self.combine_checkbox_var.get())
-            
             messagebox.showinfo("הצלחה", "הקבצים נוצרו בהצלחה!")
         except Exception as e:
             messagebox.showerror("תקלה", f"An error occurred: {str(e)}")
 
+    def show_help_window(self):
+        help_window = tk.Toplevel(self.root)
+        help_window.title("הסבר על פורמט האקסל")
+        help_window.geometry("500x300")
+        help_window.config(bg="sky blue")
+        
+        help_text = """
+ כל גיליון מכיל טבלאות עם נוכחות.
+ אפשר ליצור כמה גליונות שתרצו (לפי חודשים)
+ השורה הראשונה בכל גיליון (התאריכים) תופיע לאחר מכן בכל הקבוצות
+
+ "כל טבלה של קבוצה חייבת להתחיל בשורה הראשונה עם המשבצת "דוח נוכחות
+ בשורה השנייה של כל טבלה, יופיע שם הקבוצה (יהיה בכותרת הטבלה)
+ אחרי 2 השורות האלה, הכניסו את רשימת השמות של הקבוצה"""
+        
+        help_label = tk.Label(help_window, text=help_text, justify="right", bg="sky blue")
+        help_label.pack(pady=10, padx=10, anchor="e", fill="x")  # Stick to the right, expand horizontally if needed
+
+        close_button = tk.Button(help_window, text="סגור", command=help_window.destroy, bg="sky blue")
+        close_button.pack(pady=10)
 
 # Run the application
 if __name__ == "__main__":
