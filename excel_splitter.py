@@ -5,7 +5,7 @@ from tkinter import filedialog, messagebox
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase import pdfmetrics
 from bidi.algorithm import get_display  # To handle RTL text correctly
@@ -74,16 +74,6 @@ def create_pdf_from_table(table, title, output_pdf):
     # List to hold content for the PDF
     content = []
     
-    # Ensure columns come from the second row if it exists
-    # if len(table) > 1:  # Make sure the table has more than one row
-    #     table.columns = [str(x) if pd.notna(x) else '' for x in table.iloc[1].values]
-        
-    #     # Commented out this line as per your request
-    #     # table = table.drop(1).reset_index(drop=True)  # Drop the second row which was used as header
-    # else:
-    #     print("Warning: Table does not have a second row for column headers.")
-    #     return  # Skip processing this table if it doesn't have a valid second row
-    
     # Add the title as a header on the page
     title_paragraph = Paragraph(get_display(title), custom_style)
     content.append(title_paragraph)
@@ -92,10 +82,6 @@ def create_pdf_from_table(table, title, output_pdf):
 
     # Prepare data
     data = []
-    
-    # Add headers (using the new column names from the second row)
-    # headers = [str(col) if not pd.isna(col) else '' for col in table.columns]
-    # data.append(headers)
     
     # Add table rows (replacing NaN with empty string)
     for _, row in table.iterrows():
@@ -115,7 +101,7 @@ def create_pdf_from_table(table, title, output_pdf):
     table_obj = Table(data, colWidths=col_widths, rowHeights=row_height)
     
     # Add table styling
-    table_style = TableStyle([
+    table_style = TableStyle([ 
         ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
@@ -135,19 +121,60 @@ def create_pdf_from_table(table, title, output_pdf):
     document.build(content)
 
 # Function to export tables to PDF
-def export_tables_to_pdf(tables, output_pdf_base):
-    # Creating a new PDF for each table with title as the filename
-    for index, table in enumerate(tables):
-        # Extract the title from the third row, first column
-        title = str(table.iloc[2, 0]) if len(table) > 1 else f"Table_{index + 1}"
+def export_tables_to_pdf(tables, output_pdf_base, combine_all=False):
+    if combine_all:
+        # Combine all tables into one PDF
+        combined_output_pdf = os.path.join(output_pdf_base, "combined_output.pdf")
+        document = SimpleDocTemplate(combined_output_pdf, pagesize=landscape(A4), 
+                             topMargin=10, bottomMargin=10, leftMargin=10, rightMargin=10)
+        font_path = get_font_path()
+        # Register the Noto Sans Hebrew font
+        pdfmetrics.registerFont(TTFont('NotoSansHebrew', font_path))  # Adjust path if necessary
+
+        content = []
         
-        # Sanitize the title to create a valid filename
-        sanitized_title = sanitize_filename(title)
-        
-        # Set the output filename based on the sanitized title
-        output_pdf = os.path.join(output_pdf_base, f"{sanitized_title}.pdf")
-        create_pdf_from_table(table, title, output_pdf)
-        print(f"PDF saved as {output_pdf}")
+        for table in tables:
+            # Extract the title from the third row, first column
+            title = str(table.iloc[2, 0]) if len(table) > 1 else f"Table"
+            # Styles for the text and table
+            styles = getSampleStyleSheet()
+            styleN = styles['Normal']
+            
+            # Custom style for Hebrew support - we use "NotoSansHebrew" font
+            custom_style = ParagraphStyle('Custom', parent=styleN, fontName="NotoSansHebrew", fontSize=22, alignment=1)  # Right alignment for Hebrew
+
+            title_paragraph = Paragraph(get_display(title), custom_style)
+            content.append(title_paragraph)
+            content.append(Spacer(1, 20))  # Space before table
+            
+            data = []
+            for _, row in table.iterrows():
+                row_data = [get_display(str(cell)) if not pd.isna(cell) else '' for cell in row]
+                data.append(row_data)
+
+            table_obj = Table(data, colWidths=[181.75] + [28.35] * (len(table.columns) - 1), rowHeights=15)
+            table_style = TableStyle([ 
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, -1), 'NotoSansHebrew'),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+            ])
+            table_obj.setStyle(table_style)
+            content.append(table_obj)
+            content.append(Spacer(1, 20))  # Space between tables
+            content.append(PageBreak())
+            
+        document.build(content)
+    else:
+        # Export individual PDFs
+        for index, table in enumerate(tables):
+            title = str(table.iloc[2, 0]) if len(table) > 1 else f"Table_{index + 1}"
+            sanitized_title = sanitize_filename(title)
+            output_pdf = os.path.join(output_pdf_base, f"{sanitized_title}.pdf")
+            create_pdf_from_table(table, title, output_pdf)
+            print(f"PDF saved as {output_pdf}")
+
 # Function to sanitize the title for use as a filename
 def sanitize_filename(title):
     # Remove any characters that are not valid in a filename
@@ -161,21 +188,26 @@ class PDFExporterGUI:
         self.root.geometry("600x300")  # Set a bigger window size
 
         # Add a label and button for selecting the input file
-        self.input_file_label = tk.Label(self.root, text="קובץ לא נבחר", width=50, anchor="w")
+        self.input_file_label = tk.Label(self.root, text="קובץ לא נבחר", width=50, anchor="center")
         self.input_file_label.pack(pady=10)
 
         self.input_file_button = tk.Button(self.root, text="בחרו קובץ אקסל", command=self.choose_input_file)
         self.input_file_button.pack(pady=10)
 
         # Add a label and button for selecting the output folder
-        self.output_folder_label = tk.Label(self.root, text="תיקייה לא נבחרה", width=50, anchor="w")
+        self.output_folder_label = tk.Label(self.root, text="תיקייה לא נבחרה", width=50, anchor="center")
         self.output_folder_label.pack(pady=10)
 
         self.output_folder_button = tk.Button(self.root, text="בחרו תיקייה שבה הקבצים החדשים יווצרו", command=self.choose_output_folder)
         self.output_folder_button.pack(pady=10)
 
+        # Checkbox for combining into one PDF
+        self.combine_checkbox_var = tk.BooleanVar()
+        self.combine_checkbox = tk.Checkbutton(root, text="ייצא קובץ אחד משולב", variable=self.combine_checkbox_var)
+        self.combine_checkbox.pack(padx=100, pady=10)
+
         # Start button
-        self.start_button = tk.Button(self.root, text="התחל", state=tk.DISABLED, command=self.start_export, font=("Helvetica", 16, "bold"), bg="yellow", fg="black", width=20, height=2)
+        self.start_button = tk.Button(self.root, text="התחל", state=tk.DISABLED, command=self.start_export, font=("Helvetica", 16, "bold"), bg="green", fg="black", width=20, height=2)
         self.start_button.pack(pady=20)
 
     def choose_input_file(self):
@@ -204,8 +236,8 @@ class PDFExporterGUI:
             # Split the tables based on "נוכחות"
             tables = split_tables(df)
             
-            # Export the tables to PDFs
-            export_tables_to_pdf(tables, self.output_folder)
+            # Export the tables to PDFs, with combine option from checkbox
+            export_tables_to_pdf(tables, self.output_folder, combine_all=self.combine_checkbox_var.get())
             
             messagebox.showinfo("הצלחה", "הקבצים נוצרו בהצלחה!")
         except Exception as e:
@@ -217,28 +249,3 @@ if __name__ == "__main__":
     root = tk.Tk()
     gui = PDFExporterGUI(root)
     root.mainloop()
-# # Main function to handle command-line arguments
-# def main():
-#     # Set up command-line argument parsing
-#     parser = argparse.ArgumentParser(description="Split Excel table into multiple PDFs.")
-#     parser.add_argument('input_file', type=str, help="Input Excel file path")
-#     parser.add_argument('output_pdf', type=str, help="Output PDF file path")
-    
-#     # Parse the command-line arguments
-#     args = parser.parse_args()
-    
-#     input_file = args.input_file  # Get input file path
-#     output_pdf = args.output_pdf  # Get output PDF path
-    
-#     # Step 1: Read the Excel file
-#     df = read_excel(input_file)
-    
-#     # Step 2: Split the data into tables
-#     tables = split_tables(df)
-    
-#     # Step 3: Export the tables to a PDF
-#     export_tables_to_pdf(tables, output_pdf)
-#     print(f"PDF(s) saved with prefix {output_pdf}")
-
-# if __name__ == "__main__":
-#     main()
