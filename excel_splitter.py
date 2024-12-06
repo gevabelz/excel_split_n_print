@@ -1,7 +1,7 @@
 import pandas as pd
 import os
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, ttk  # ttk for Combobox
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -13,11 +13,10 @@ import re
 import sys
 
 
-# Function to read the Excel file
-def read_excel(file_path):
-    df = pd.read_excel(file_path, sheet_name=None)  # Read all sheets into a dictionary
-    sheet_name = list(df.keys())[0]  # Assuming you want the first sheet
-    return df[sheet_name]
+# Function to read the Excel file with a specific sheet
+def read_excel(file_path, sheet_name):
+    df = pd.read_excel(file_path, sheet_name=sheet_name)  # Read the selected sheet
+    return df
 
 # Function to split the tables based on the presence of "נוכחות"
 def split_tables(df: pd.DataFrame):
@@ -111,7 +110,7 @@ def create_pdf_from_table(table, title, output_pdf):
         ('LEFTPADDING', (0, 0), (-1, -1), 5),  # Reduced left padding
         ('RIGHTPADDING', (0, 0), (-1, -1), 5),  # Reduced right padding
         ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
-    ])
+    ] )
     
     table_obj.setStyle(table_style)
     
@@ -185,7 +184,7 @@ class PDFExporterGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("PDF Exporter")
-        self.root.geometry("600x300")  # Set a bigger window size
+        self.root.geometry("600x400")  # Adjust window size
 
         # Add a label and button for selecting the input file
         self.input_file_label = tk.Label(self.root, text="קובץ לא נבחר", width=50, anchor="center")
@@ -193,6 +192,13 @@ class PDFExporterGUI:
 
         self.input_file_button = tk.Button(self.root, text="בחרו קובץ אקסל", command=self.choose_input_file)
         self.input_file_button.pack(pady=10)
+
+        # Add a label for sheet selection
+        self.sheet_label = tk.Label(self.root, text="בחרו גיליון", width=50, anchor="center")
+        self.sheet_label.pack(pady=10)
+
+        self.sheet_combobox = ttk.Combobox(self.root, state="readonly")
+        self.sheet_combobox.pack(pady=10)
 
         # Add a label and button for selecting the output folder
         self.output_folder_label = tk.Label(self.root, text="תיקייה לא נבחרה", width=50, anchor="center")
@@ -214,6 +220,10 @@ class PDFExporterGUI:
         self.input_file = filedialog.askopenfilename(title="Select Excel File", filetypes=[("Excel Files", "*.xlsx")])
         if self.input_file:
             self.input_file_label.config(text=f"קובץ נבחר: {self.input_file}")
+            # Load the sheet names into the combo box
+            xls = pd.ExcelFile(self.input_file)
+            sheet_names = xls.sheet_names
+            self.sheet_combobox['values'] = sheet_names
             self.check_start_button()
 
     def choose_output_folder(self):
@@ -223,15 +233,16 @@ class PDFExporterGUI:
             self.check_start_button()
 
     def check_start_button(self):
-        if hasattr(self, 'input_file') and hasattr(self, 'output_folder'):
+        if hasattr(self, 'input_file') and hasattr(self, 'output_folder') and self.sheet_combobox.get():
             self.start_button.config(state=tk.NORMAL)
         else:
             self.start_button.config(state=tk.DISABLED)
 
     def start_export(self):
         try:
-            # Read the Excel file
-            df = read_excel(self.input_file)
+            # Read the selected sheet
+            selected_sheet = self.sheet_combobox.get()
+            df = read_excel(self.input_file, selected_sheet)
             
             # Split the tables based on "נוכחות"
             tables = split_tables(df)
