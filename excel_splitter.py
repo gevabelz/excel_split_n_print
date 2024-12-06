@@ -121,10 +121,10 @@ def create_pdf_from_table(table, title, output_pdf):
     document.build(content)
 
 # Function to export tables to PDF
-def export_tables_to_pdf(tables, output_pdf_base, combine_all=False):
+def export_tables_to_pdf(tables, output_pdf_base, combine_all=False, sheet_name="SheetName"):
     if combine_all:
         # Combine all tables into one PDF
-        combined_output_pdf = os.path.join(output_pdf_base, "combined_output.pdf")
+        combined_output_pdf = os.path.join(output_pdf_base, f"{sheet_name} דוח נוכחות.pdf")
         document = SimpleDocTemplate(combined_output_pdf, pagesize=landscape(A4), 
                              topMargin=10, bottomMargin=10, leftMargin=10, rightMargin=10)
         font_path = get_font_path()
@@ -256,7 +256,7 @@ class PDFExporterGUI:
             selected_sheet = self.sheet_combobox.get()
             df = read_excel(self.input_file, selected_sheet)
             tables = split_tables(df)
-            export_tables_to_pdf(tables, self.output_folder, combine_all=self.combine_checkbox_var.get())
+            export_tables_to_pdf(tables, self.output_folder, combine_all=self.combine_checkbox_var.get(), sheet_name=selected_sheet)
             messagebox.showinfo("הצלחה", "הקבצים נוצרו בהצלחה!")
         except Exception as e:
             messagebox.showerror("תקלה", f"An error occurred: {str(e)}")
